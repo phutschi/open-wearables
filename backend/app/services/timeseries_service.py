@@ -2,7 +2,7 @@ import threading
 from collections import defaultdict
 from datetime import datetime
 from logging import Logger, getLogger
-from typing import Any
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import event as sa_event
@@ -36,6 +36,18 @@ from app.utils.exceptions import handle_exceptions
 from app.utils.pagination import encode_cursor
 
 
+class _WebhookSampleMeta(NamedTuple):
+    """Lightweight snapshot for async webhook emission — avoids retaining full Pydantic models."""
+
+    user_id: UUID
+    provider: str
+    series_type: str
+    recorded_at: datetime
+    zone_offset: str | None
+    value: float
+    device_model: str | None
+
+
 class TimeSeriesService(
     AppService[
         DataPointSeriesRepository,
@@ -55,7 +67,18 @@ class TimeSeriesService(
         samples: (list[TimeSeriesSampleCreate] | list[HeartRateSampleCreate] | list[StepSampleCreate]),
     ) -> None:
         self.crud.bulk_create(db_session, samples)  # ty:ignore[invalid-argument-type]
-        samples_copy = list(samples)
+        webhook_meta = [
+            _WebhookSampleMeta(
+                user_id=s.user_id,
+                provider=s.provider or s.source or "unknown",
+                series_type=s.series_type.value,
+                recorded_at=s.recorded_at,
+                zone_offset=s.zone_offset,
+                value=float(s.value),
+                device_model=s.device_model,
+            )
+            for s in samples
+        ]
 
         @sa_event.listens_for(db_session, "after_commit", once=True)
         def _start_webhook_thread(session: DbSession) -> None:  # noqa: ARG001
@@ -63,21 +86,19 @@ class TimeSeriesService(
                 return
             threading.Thread(
                 target=self._emit_timeseries_webhooks,
-                args=(samples_copy,),
+                args=(webhook_meta,),
                 daemon=True,
             ).start()
 
     @staticmethod
-    def _emit_timeseries_webhooks(
-        samples: list[TimeSeriesSampleCreate] | list[HeartRateSampleCreate] | list[StepSampleCreate],
-    ) -> None:
+    def _emit_timeseries_webhooks(samples: list[_WebhookSampleMeta]) -> None:
         """Emit one webhook event per (user, provider, series_type) batch."""
         if not samples:
             return
         try:
-            groups: dict[tuple[UUID, str, str], list[Any]] = defaultdict(list)
+            groups: dict[tuple[UUID, str, str], list[_WebhookSampleMeta]] = defaultdict(list)
             for s in samples:
-                key = (s.user_id, s.provider or s.source or "unknown", s.series_type.value)
+                key = (s.user_id, s.provider, s.series_type)
                 groups[key].append(s)
             for (user_id, provider, series_type_value), group_samples in groups.items():
                 sorted_samples = sorted(group_samples, key=lambda s: s.recorded_at)
@@ -88,7 +109,7 @@ class TimeSeriesService(
                         "timestamp": s.recorded_at.isoformat(),
                         "zone_offset": s.zone_offset,
                         "type": series_type_value,
-                        "value": float(s.value),
+                        "value": s.value,
                         "unit": unit,
                         "source": {"provider": provider, "device": s.device_model},
                     }
