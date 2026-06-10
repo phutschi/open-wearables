@@ -128,3 +128,36 @@ When working on documentation in the `docs/` directory:
 - **RequestExample/ResponseExample** - For API endpoint documentation
 - **ParamField** - For API parameters, **ResponseField** - For API responses
 - **Expandable** - For nested object properties or hierarchical information
+
+## Cursor Cloud specific instructions
+
+### Docker and services
+
+The recommended dev workflow is Docker Compose (see [contributing/developing.md](contributing/developing.md)). In Cloud Agent VMs:
+
+1. Ensure Docker is running: `sudo service docker start`
+2. If `docker ps` fails with permission denied: `sudo chmod 666 /var/run/docker.sock`
+3. Copy env files on first setup (not committed): `cp backend/config/.env.example backend/config/.env` and `cp frontend/.env.example frontend/.env`
+4. Build and start: `docker compose build && docker compose up -d`
+
+Prefer `docker compose up -d` over `make run` — the Makefile references a removed `db-svix-init` service and exits with code 2 even though containers start successfully.
+
+The API needs ~15–30s on first boot while migrations and init scripts run. Wait for `http://localhost:8000/docs` before testing.
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| API / Swagger | http://localhost:8000 / http://localhost:8000/docs |
+| Flower | http://localhost:5555 |
+
+Default admin login: `admin@admin.com` / `your-secure-password`. Optional sample data: `make seed`.
+
+### Local tooling (lint/tests outside containers)
+
+- **Backend deps:** `cd backend && uv sync --group dev --group code-quality` (`ruff`/`ty` live in the `code-quality` group, not `dev`)
+- **Frontend deps:** `cd frontend && pnpm install --frozen-lockfile`
+- **Backend tests:** `cd backend && uv run pytest -v --cov=app` (uses testcontainers; requires Docker daemon)
+- **Backend lint:** `cd backend && uv run pre-commit run --all-files` or `uv run ruff check .`
+- **Frontend lint:** `cd frontend && pnpm run lint`
+
+Svix (outgoing webhooks) may restart briefly on first boot until Postgres is healthy; core portal/API flows work without waiting for it.
