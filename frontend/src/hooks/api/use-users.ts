@@ -214,9 +214,12 @@ export function useUploadAppleXmlViaS3() {
 
       // Step 3: Queue processing when SNS auto-trigger is not configured
       if (presignedData.requires_manual_processing) {
-        const processResult = await usersService.processAppleXmlS3Upload(userId, {
-          file_key: presignedData.file_key,
-        });
+        const processResult = await usersService.processAppleXmlS3Upload(
+          userId,
+          {
+            file_key: presignedData.file_key,
+          }
+        );
         return { presignedData, processResult };
       }
 
