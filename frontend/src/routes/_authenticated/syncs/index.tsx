@@ -17,6 +17,8 @@ import {
   formatRelative,
 } from '@/lib/utils/sync-format';
 import { ROUTES } from '@/lib/constants/routes';
+import { SyncUserAvatar } from '@/components/syncs/sync-user-avatar';
+import { SyncRunDetailSheet } from '@/components/syncs/sync-run-detail-sheet';
 import type { SyncRunSummary } from '@/lib/api';
 
 export const Route = createFileRoute('/_authenticated/syncs/')({
@@ -33,6 +35,7 @@ function SyncsPage() {
   const [userIdInput, setUserIdInput] = useState('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [selectedRun, setSelectedRun] = useState<SyncRunSummary | null>(null);
 
   const { data: providerSettings } = useOAuthProviders();
   const providerOptions = useMemo(
@@ -185,7 +188,7 @@ function SyncsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800 bg-zinc-900/50 text-zinc-400 text-xs">
-                  <th className="px-4 py-2.5 text-left font-medium">User ID</th>
+                  <th className="px-4 py-2.5 text-left font-medium">User</th>
                   <th className="px-4 py-2.5 text-left font-medium">
                     Provider
                   </th>
@@ -204,7 +207,11 @@ function SyncsPage() {
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {paginatedRuns.map((run) => (
-                  <SyncRow key={run.run_id} run={run} />
+                  <SyncRow
+                    key={run.run_id}
+                    run={run}
+                    onSelect={() => setSelectedRun(run)}
+                  />
                 ))}
               </tbody>
             </table>
@@ -238,26 +245,40 @@ function SyncsPage() {
           </div>
         </>
       )}
+
+      <SyncRunDetailSheet
+        run={selectedRun}
+        onClose={() => setSelectedRun(null)}
+      />
     </div>
   );
 }
 
-function SyncRow({ run }: { run: SyncRunSummary }) {
+function SyncRow({
+  run,
+  onSelect,
+}: {
+  run: SyncRunSummary;
+  onSelect: () => void;
+}) {
   const badgeClass =
     RUN_STATUS_CLASSES[run.status] ?? RUN_STATUS_CLASSES.in_progress;
   const sourceLabel = SOURCE_LABELS[run.source] ?? run.source;
-  const shortUserId = run.user_id.slice(0, 8);
 
   return (
-    <tr className="hover:bg-zinc-900/30 transition-colors">
+    <tr
+      className="hover:bg-zinc-900/30 transition-colors cursor-pointer"
+      onClick={onSelect}
+    >
       <td className="px-4 py-2.5">
         <Link
           to={ROUTES.user}
           params={{ userId: run.user_id }}
-          className="font-mono text-xs text-blue-400 hover:text-blue-300 hover:underline"
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`View user ${run.user_id}`}
+          className="inline-flex"
         >
-          {shortUserId}
-          {run.user_id.length > 8 ? '…' : ''}
+          <SyncUserAvatar userId={run.user_id} />
         </Link>
       </td>
       <td className="px-4 py-2.5 capitalize">{run.provider}</td>
