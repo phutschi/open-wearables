@@ -138,6 +138,10 @@ export function UsersTable({
     }
   };
 
+  const stopRowActivation = (event: { stopPropagation: () => void }) => {
+    event.stopPropagation();
+  };
+
   const SortableHeader = ({
     column,
     children,
@@ -185,10 +189,7 @@ export function UsersTable({
         </span>
       ),
       cell: ({ row }) => (
-        <div
-          className="flex items-center gap-2"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="flex items-center gap-2">
           <code className="font-mono text-xs bg-muted text-foreground/90 px-2 py-1 rounded">
             {truncateId(row.original.id)}
           </code>
@@ -278,7 +279,8 @@ export function UsersTable({
       cell: ({ row }) => (
         <div
           className="flex justify-end gap-1"
-          onClick={(e) => e.stopPropagation()}
+          onClick={stopRowActivation}
+          onKeyDown={stopRowActivation}
         >
           <Button
             variant="outline"
@@ -435,7 +437,16 @@ export function UsersTable({
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3">
+                    <td
+                      key={cell.id}
+                      className="px-4 py-3"
+                      onClick={
+                        cell.column.id === 'id' ? stopRowActivation : undefined
+                      }
+                      onKeyDown={
+                        cell.column.id === 'id' ? stopRowActivation : undefined
+                      }
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
