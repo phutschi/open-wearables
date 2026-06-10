@@ -5,31 +5,39 @@ import viteReact from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { nitro } from 'nitro/vite';
 
-const config = defineConfig({
-  build: {
-    outDir: 'dist',
-  },
-  server: {
-    host: '0.0.0.0',
-    port: 3000,
-    watch: {
-      usePolling: true,
+const config = defineConfig(({ mode }) => {
+  const isTest = mode === 'test' || process.env.VITEST === 'true';
+
+  return {
+    build: {
+      outDir: 'dist',
     },
-  },
-  resolve: {
-    tsconfigPaths: true,
-  },
-  plugins: [
-    devtools(),
-    nitro({
-      // decimal.js-light has "main": "decimal" (no extension) in package.json
-      // which breaks ESM resolution when externalized. Force inline bundling.
-      noExternals: ['decimal.js-light'],
-    }),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
-  ],
+    server: {
+      host: '0.0.0.0',
+      port: 3000,
+      watch: {
+        usePolling: true,
+      },
+    },
+    resolve: {
+      tsconfigPaths: true,
+    },
+    plugins: [
+      ...(!isTest
+        ? [
+            devtools(),
+            nitro({
+              // decimal.js-light has "main": "decimal" (no extension) in package.json
+              // which breaks ESM resolution when externalized. Force inline bundling.
+              noExternals: ['decimal.js-light'],
+            }),
+            tanstackStart(),
+          ]
+        : []),
+      tailwindcss(),
+      viteReact(),
+    ],
+  };
 });
 
 export default config;
